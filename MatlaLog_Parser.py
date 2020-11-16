@@ -8,6 +8,7 @@ original_log_path = "log_files/Matlab_Log.txt"
 cleaned_log_path="log_files/Cleaned_Matlab_Log.txt"
 SWF_log = "log_files/SWF_Matlab_Log.txt"
 UserDict=dict()
+
 ApplicationsDict=dict()
 Interarrivals1=list()
 with open (cleaned_log_path) as file:  # Generating a dictionary containing the user name (e.g user1@computer1) as a key and a list of 
@@ -188,3 +189,4 @@ plt.ylim(0, 1)
 plt.xlabel('Run Time (seconds)')
 plt.ylabel('Cumulative probability')
 plt.show()
+
