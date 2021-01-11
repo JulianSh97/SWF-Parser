@@ -1,5 +1,10 @@
 from datetime import datetime
 import matplotlib.pyplot as plt
+from scipy import stats
+import statsmodels.api as sm 
+import pylab as py 
+import numpy
+
 ConsumptionsDict=dict()
 UserDict=dict()
 X=list()
@@ -20,6 +25,18 @@ with open (cleaned_log_path) as file:  # Generating a dictionary containing the 
         else:
             UserDict.setdefault(User,[]).append(line)
 
+def fitDist(list_of_data):
+    list_of_dists = ['erlang', 'expon', 'gamma','lognorm','lomax' ,'norm', 'pareto', 'weibull_min', 'weibull_max']
+    results = []
+    for i in list_of_dists:
+        dist = getattr(stats, i)
+        param = dist.fit(list_of_data)
+        a = stats.kstest(list_of_data, i, args=param)
+        results.append((i, a[0], a[1]))
+    results.sort(key=lambda x: float(x[2]), reverse=True)
+    for j in results:
+        print("{}: statistic={}, pvalue={}".format(j[0], j[1], j[2]))
+        
 with open(cleaned_log_path) as file:
     for line in file:
         line_split=line.split()
@@ -50,6 +67,9 @@ for Request in ConsumptionsDict.values():
            i+=1
 plt.title("Resources Consumption")
 plt.plot(X,NumberOfRequests)
+fitDist(NumberOfRequests)
+#sm.qqplot(numpy.array(NumberOfRequests),dist=stats.dweibull(args, kwds) line ='45') 
+#py.show() 
 plt.xlim(0,45000)
 plt.ylim(0,100)   
 plt.xlabel("Seconds since the system started")
