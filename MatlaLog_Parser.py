@@ -3,14 +3,18 @@ import os
 from datetime import datetime, date
 from RowClass import RowClass
 import matplotlib.pyplot as plt
+from scipy import stats
+import statsmodels.api as sm 
+import pylab as py 
+import numpy
+import matplotlib
 
-original_log_path = "log_files/Matlab_Log.txt"
-cleaned_log_path="log_files/Cleaned_Matlab_Log.txt"
-SWF_log = "log_files/SWF_Matlab_Log.txt"
 UserDict=dict()
-
 ApplicationsDict=dict()
 Interarrivals1=list()
+cleaned_log_path="C:\\Users\most_\OneDrive\Documents\GitHub\SWF-Parser\log_files\Cleaned_Matlab_Log.txt"
+SWF_log="C:\\Users\most_\OneDrive\Documents\GitHub\SWF-Parser\log_files\SWF_Matlab_log.txt"
+original_log_path="C:\\Users\most_\OneDrive\Documents\GitHub\SWF-Parser\log_files\Matlab_Log.txt"
 with open (cleaned_log_path) as file:  # Generating a dictionary containing the user name (e.g user1@computer1) as a key and a list of 
     for line in file:                  # all the jobs he is involved in
         line_split=line.split()
@@ -41,6 +45,8 @@ PrecedingJobArrival=started_time
 row_counter=0
 Interarrivals=dict()
 Interarrivals2=list()
+ThinkTimesVar=[]
+RuntimesVar=[]
 with open(SWF_log, "w") as swf_file:
     for row in log_file.readlines():
         row_split_list = row.split()
@@ -62,7 +68,19 @@ with open(SWF_log, "w") as swf_file:
             if  "IN: "+ row_split_list[3] in job:                                # search for the "IN" request of the same job we have now
                 endTime=datetime.strptime((job.split())[0], "%H:%M:%S").time() # in order to calculate the runtime which is the substraction
                 endTime=(endTime.hour)*3600+(endTime.minute)*60+(endTime.second) # of the "IN" time and "OUT" time ;not sure about it
+        j=-1
+        for i in range(len(currentUser)):
+            if row_split_list[0] in currentUser[i]:
+                j=i-1
+                continue
+        if j==-1:
+            ThinkTime=0
+        else:
+            ThinkTime=datetime.strptime(currentUser[j].split()[0], "%H:%M:%S").time()
+            ThinkTime= arrival_time- ((ThinkTime.hour)*3600+(ThinkTime.minute)*60+(ThinkTime.second))
+        ThinkTimesVar.append(ThinkTime)
         runtime=endTime-arrival_time
+        RuntimesVar.append(runtime)
         NumOfProc=-1 #couldn't find information about the number of processors requested
         AverageCPUtime=-1 #not sure
         AverageMem=-1 # no information found
@@ -75,7 +93,6 @@ with open(SWF_log, "w") as swf_file:
         Executable=list(ApplicationsDict.keys()).index(row_split_list[3]) #TODO:create a dictionary for each request type (e.g "MATLAB"...) 
         Queue=-1
         Partition=-1
-        ThinkTime=-1
         current_row = RowClass(order=job_number, submit_time=submit_time,wait_time=0, runtime=runtime, number_of_nodes=NumOfProc,average_cpu_time=AverageCPUtime,average_memory_per_node=AverageMem,requested_processors=RequestedProc,requested_runtime=Requestedruntime,
                                requested_memory=RequestedMem,status=Status,user_id=UserID, group_id=GroupID,application_id=Executable, number_of_queues=Queue,number_of_partitions=Partition,preceding_job_number=PrecedingJobNum,think_time=ThinkTime)
         swf_file.write(current_row.convert_to_string())
@@ -85,47 +102,63 @@ with open(SWF_log, "w") as swf_file:
         PrecedingJobNum+=1
 #Lines like 156-182 in the original file shouldn't be removed due to description of memory used, runtime in ms...
 #information may be lost (not sure about this thing) should discuss it with the group    
-    
+ThinkTimesCount=dict()   
+for Time in ThinkTimesVar:
+     if Time in ThinkTimesCount:
+        ThinkTimesCount[Time]+=1
+     else:
+        ThinkTimesCount.setdefault(Time,1)
+ThinkTimesList=sorted(ThinkTimesCount.keys())
+ThinkTimesProbs=[]
+for time in ThinkTimesList:
+    ThinkTimesProbs.append(ThinkTimesCount[time]/len(ThinkTimesVar))
+RuntimesVar=numpy.array(RuntimesVar)
+ThinkTimesVar=numpy.array(ThinkTimesVar)
+covariance=numpy.cov(RuntimesVar,y=ThinkTimesVar)
+print(covariance[0][1])
+matplotlib.pyplot.scatter(RuntimesVar,ThinkTimesVar)
+matplotlib.pyplot.xlabel("RunTimes In Seconds")
+matplotlib.pyplot.ylabel("Think Time In Seconds")
 Probabilities=list()
 Interarrivals2.sort()
 vals=list()
-for v in Interarrivals2:
-    vals.append(Interarrivals[v])
+# for v in Interarrivals2:
+#     vals.append(Interarrivals[v])
     
-for v in vals:
-    Probabilities.append(v/len(Interarrivals1))
-#here we show the probabilities graph
-plt.title("Probability(y) of Interarrivals times in seconds(x)")
-plt.xscale('log',basex=2)
-plt.plot(Interarrivals2, Probabilities)
-plt.xlim(1, 2 ** 12)
-plt.ylim(0, 0.07)
-plt.xlabel('Interarrival (seconds)')
-plt.ylabel('PDF')
-plt.show()
+# for v in vals:
+#     Probabilities.append(v/len(Interarrivals1))
+# #here we show the probabilities graph
+# plt.title("Probability(y) of Interarrivals times in seconds(x)")
+# #plt.xscale('log',basex=2)
+# plt.plot(Interarrivals2, Probabilities)
+# plt.xlim(1, 2 ** 12)
+# plt.ylim(0, 0.1)
+# plt.xlabel('Interarrival (seconds)')
+# plt.ylabel('PDF')
+# plt.show()
 
 
-#here we show the CDF grph
-Probabilities2=list()
-Interarrivals3=list()
-i=0
-while i<max(Interarrivals1):
-    p=0
-    j=0
-    Interarrivals3.append(i)
-    while Interarrivals2[j]<i:
-        p+=Probabilities[j]
-        j+=1
-    i+=1    
-    Probabilities2.append(p)
-plt.title("Cumulative Probability(y) of Interarrivals times in seconds(x)")    
-plt.xscale('log',basex=2)    
-plt.plot(Interarrivals3, Probabilities2)
-plt.xlim(1, 2**13)
-plt.ylim(0, 1)
-plt.xlabel('Interarrival (seconds)')
-plt.ylabel('Comulative probability')
-plt.show()
+# #here we show the CDF grph
+# Probabilities2=list()
+# Interarrivals3=list()
+# i=0
+# while i<max(Interarrivals1):
+#     p=0
+#     j=0
+#     Interarrivals3.append(i)
+#     while Interarrivals2[j]<i:
+#         p+=Probabilities[j]
+#         j+=1
+#     i+=1    
+#     Probabilities2.append(1-p)
+# plt.title("Cumulative Probability(y) of Interarrivals times in seconds(x)")    
+# #plt.xscale('log',basex=2)    
+# plt.plot(Interarrivals3, Probabilities2)
+# plt.xlim(0,4500)
+# plt.ylim(0,1)
+# plt.xlabel('Interarrival (seconds)')
+# plt.ylabel('Comulative probability')
+# plt.show()
     
 RunTimes=list()
 RunTimes2=list()
@@ -159,34 +192,38 @@ for v in vals:
     RunTimesProbabilities.append(v/len(RunTimes))
 vals=list()    
 plt.title("Probability(y) of Run Times in seconds(x)")    
-plt.xscale('log',basex=2)
+plt.xscale('log',base=2)
 plt.plot(RunTimes2, RunTimesProbabilities)
-plt.xlim(1, 2**16)
+plt.plot(ThinkTimesList,ThinkTimesProbs)
+#fitDist(RunTimesProbabilities[11:])
+plt.xlim(1, 40000)
 plt.ylim(0, 0.05)
 plt.xlabel('Run Time (seconds)')
 plt.ylabel('probability')
 plt.show()
-i=0
-RunTimes3=list()
-RunTimes3O=list()
-while i<max(RunTimes):
-    p=0
-    j=0
-    RunTimes3.append(i)
-    while RunTimes2[j]<i:
-        p+=RunTimesProbabilities[j]
-        j+=1
-    i+=1    
-    RunTimesProbabilities2.append(p)
+# i=0
+# RunTimes3=list()
+# RunTimes3O=list()
+# while i<max(RunTimes):
+#     p=0
+#     j=0
+#     RunTimes3.append(i)
+#     while RunTimes2[j]<i:
+#         p+=RunTimesProbabilities[j]
+#         j+=1
+#     i+=1    
+#     RunTimesProbabilities2.append(1-p)
 
-i=0
-plt.title("Cumulative probability(y) of Run Times in seconds(x)")     
-plt.xscale('log',basex=2)
-#plt.plot(RunTimes3O, RunTimesProbabilities2O,label="Other Jobs")
-plt.plot(RunTimes3, RunTimesProbabilities2)
-plt.xlim(1, 2**16)
-plt.ylim(0, 1)
-plt.xlabel('Run Time (seconds)')
-plt.ylabel('Cumulative probability')
-plt.show()
+# i=0
+# plt.title("Cumulative probability(y) of Run Times in seconds(x)")     
+# plt.xscale('log',basex=2)
+# plt.yscale('log')
+# #plt.plot(RunTimes3O, RunTimesProbabilities2O,label="Other Jobs")
+# plt.plot(RunTimes3, RunTimesProbabilities2)
+# plt.xlim(0, 2**16)
+# plt.ylim(0, 1)
+# plt.xlabel('Run Time (seconds)')
+# plt.ylabel('Cumulative probability')
+# plt.show()
+
 
